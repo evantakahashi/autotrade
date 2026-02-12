@@ -1,0 +1,19 @@
+# strategies/v0.1.yaml
+version: "0.1"
+name: "baseline"
+weights:
+  trend: 0.35
+  relative_strength: 0.10
+  volatility: 0.15
+  liquidity: 0.10
+  fundamentals: 0.20
+  sentiment: 0.10
+thresholds:
+  buy: 70
+  hold_min: 40
+  sell: 40
+filters:
+  min_price: 5.0
+  min_avg_volume: 500000
+  max_annual_volatility: 100
+overrides: null
