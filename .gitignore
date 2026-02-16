@@ -1,7 +1,7 @@
 .env
 *.duckdb
 *.duckdb.wal
-output/
+/output/
 __pycache__/
 *.pyc
 .venv/
