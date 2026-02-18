@@ -17,3 +17,10 @@ filters:
   min_avg_volume: 500000
   max_annual_volatility: 100
 overrides: null
+backtest:
+  train_months: 6
+  validation_months: 2
+  test_months: 1
+  step_months: 1
+  rebalance_frequency: weekly
+  transaction_cost_bps: 10
