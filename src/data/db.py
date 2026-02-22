@@ -98,5 +98,56 @@ class Storage:
              json.dumps(rec.get("risk_params", {}))]
         )
 
+    def store_experiment(self, experiment_id: str, parent_version: str,
+                         config_diff: dict, hypothesis: str):
+        self.conn.execute(
+            "INSERT OR REPLACE INTO experiments VALUES (?, ?, ?, ?, ?, ?)",
+            [experiment_id, parent_version, json.dumps(config_diff),
+             None, None, datetime.now()]
+        )
+
+    def update_experiment_decision(self, experiment_id: str, decision: str, metrics: dict):
+        self.conn.execute(
+            "UPDATE experiments SET decision = ?, metrics = ? WHERE experiment_id = ?",
+            [decision, json.dumps(metrics), experiment_id]
+        )
+
+    def get_experiment(self, experiment_id: str) -> dict | None:
+        df = self.conn.execute(
+            "SELECT * FROM experiments WHERE experiment_id = ?", [experiment_id]
+        ).fetchdf()
+        if df.empty:
+            return None
+        return df.to_dict("records")[0]
+
+    def get_experiments(self) -> list[dict]:
+        return self.conn.execute(
+            "SELECT * FROM experiments ORDER BY created_at DESC"
+        ).fetchdf().to_dict("records")
+
+    def get_recent_experiments(self, limit: int = 10) -> list[dict]:
+        return self.conn.execute(
+            "SELECT * FROM experiments ORDER BY created_at DESC LIMIT ?", [limit]
+        ).fetchdf().to_dict("records")
+
+    def store_strategy_version(self, version: str, config_hash: str, metrics: dict):
+        self.conn.execute(
+            "INSERT OR REPLACE INTO strategy_versions VALUES (?, ?, ?, ?)",
+            [version, config_hash, datetime.now(), json.dumps(metrics)]
+        )
+
+    def get_strategy_versions(self) -> list[dict]:
+        return self.conn.execute(
+            "SELECT * FROM strategy_versions ORDER BY promoted_date DESC"
+        ).fetchdf().to_dict("records")
+
+    def get_latest_strategy_version(self) -> dict | None:
+        df = self.conn.execute(
+            "SELECT * FROM strategy_versions ORDER BY promoted_date DESC LIMIT 1"
+        ).fetchdf()
+        if df.empty:
+            return None
+        return df.to_dict("records")[0]
+
     def close(self):
         self.conn.close()
