@@ -47,3 +47,56 @@ def test_experiment_not_found(db_with_experiments):
     )
     assert result.returncode == 1
     assert "not found" in result.stderr.lower()
+
+
+@pytest.fixture
+def db_with_strategies(tmp_path):
+    db_path = str(tmp_path / "test.duckdb")
+    db = Storage(db_path)
+    db.store_strategy_version("0.1", "abc123", {"sharpe": 0.8})
+    db.store_strategy_version("0.2", "def456", {"sharpe": 1.1})
+    db.close()
+    yield db_path
+
+
+def test_strategy_current(db_with_strategies):
+    result = subprocess.run(
+        [sys.executable, "query.py", "strategy", "--current", "--db", db_with_strategies],
+        capture_output=True, text=True,
+    )
+    assert result.returncode == 0
+    data = json.loads(result.stdout)
+    assert data["version"] == "0.2"
+
+
+def test_strategy_history(db_with_strategies):
+    result = subprocess.run(
+        [sys.executable, "query.py", "strategy", "--history", "--db", db_with_strategies],
+        capture_output=True, text=True,
+    )
+    assert result.returncode == 0
+    data = json.loads(result.stdout)
+    assert len(data) == 2
+
+
+@pytest.fixture
+def db_with_scores(tmp_path):
+    from datetime import datetime
+    db_path = str(tmp_path / "test.duckdb")
+    db = Storage(db_path)
+    db.store_score(datetime(2026, 3, 1), "AAPL", "trend", 75.0, 0.8, {"momentum": 80})
+    db.store_score(datetime(2026, 3, 1), "AAPL", "volatility", 60.0, 0.7, {"vol": 25})
+    db.store_score(datetime(2026, 3, 2), "AAPL", "trend", 72.0, 0.75, {"momentum": 76})
+    db.close()
+    yield db_path
+
+
+def test_scores_by_ticker(db_with_scores):
+    result = subprocess.run(
+        [sys.executable, "query.py", "scores", "--ticker", "AAPL", "--last", "5", "--db", db_with_scores],
+        capture_output=True, text=True,
+    )
+    assert result.returncode == 0
+    data = json.loads(result.stdout)
+    assert len(data) == 3
+    assert all(r["ticker"] == "AAPL" for r in data)
