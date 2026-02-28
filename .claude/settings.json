@@ -1,0 +1,19 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if echo \"$CLAUDE_FILE_PATH\" | grep -q 'experiments/.*/config.yaml'; then python3 scripts/validate_experiment.py \"$CLAUDE_FILE_PATH\"; fi"
+          },
+          {
+            "type": "command",
+            "command": "if echo \"$CLAUDE_FILE_PATH\" | grep -q 'strategies/v.*\\.yaml'; then python3 scripts/log_promotion.py; fi"
+          }
+        ]
+      }
+    ]
+  }
+}
