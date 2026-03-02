@@ -2,7 +2,7 @@
 import duckdb
 import json
 import pandas as pd
-from datetime import datetime
+from datetime import date, datetime
 
 class Storage:
     def __init__(self, db_path: str = "data/trading_agent.duckdb"):
@@ -63,6 +63,29 @@ class Storage:
                 config_hash VARCHAR,
                 promoted_date TIMESTAMP,
                 metrics JSON
+            )
+        """)
+        self.conn.execute("""
+            CREATE TABLE IF NOT EXISTS paper_trades (
+                experiment_id VARCHAR,
+                trade_date DATE,
+                baseline_positions JSON,
+                experiment_positions JSON,
+                baseline_return DOUBLE,
+                experiment_return DOUBLE,
+                baseline_cumulative DOUBLE,
+                experiment_cumulative DOUBLE,
+                PRIMARY KEY (experiment_id, trade_date)
+            )
+        """)
+        self.conn.execute("""
+            CREATE TABLE IF NOT EXISTS loop_state (
+                loop_id VARCHAR PRIMARY KEY DEFAULT 'main',
+                status VARCHAR,
+                paper_trading_experiment VARCHAR,
+                paper_start_date DATE,
+                last_iteration_at TIMESTAMP,
+                consecutive_rejections INTEGER DEFAULT 0
             )
         """)
 
@@ -148,6 +171,60 @@ class Storage:
         if df.empty:
             return None
         return df.to_dict("records")[0]
+
+    def store_paper_trade(self, experiment_id: str, trade_date, baseline_positions: dict,
+                          experiment_positions: dict, baseline_return: float,
+                          experiment_return: float, baseline_cumulative: float,
+                          experiment_cumulative: float):
+        self.conn.execute(
+            "INSERT OR REPLACE INTO paper_trades VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            [experiment_id, trade_date, json.dumps(baseline_positions),
+             json.dumps(experiment_positions), baseline_return, experiment_return,
+             baseline_cumulative, experiment_cumulative]
+        )
+
+    def get_paper_trades(self, experiment_id: str) -> list[dict]:
+        df = self.conn.execute(
+            "SELECT * FROM paper_trades WHERE experiment_id = ? ORDER BY trade_date",
+            [experiment_id]
+        ).fetchdf()
+        if df.empty:
+            return []
+        return df.to_dict("records")
+
+    def get_paper_trade_count(self, experiment_id: str) -> int:
+        return self.conn.execute(
+            "SELECT COUNT(*) FROM paper_trades WHERE experiment_id = ?",
+            [experiment_id]
+        ).fetchone()[0]
+
+    def save_loop_state(self, status: str, paper_trading_experiment: str | None = None,
+                        paper_start_date=None, consecutive_rejections: int = 0):
+        self.conn.execute(
+            """INSERT OR REPLACE INTO loop_state
+               VALUES ('main', ?, ?, ?, ?, ?)""",
+            [status, paper_trading_experiment, paper_start_date,
+             datetime.now(), consecutive_rejections]
+        )
+
+    def get_loop_state(self) -> dict | None:
+        df = self.conn.execute(
+            "SELECT * FROM loop_state WHERE loop_id = 'main'"
+        ).fetchdf()
+        if df.empty:
+            return None
+        return df.to_dict("records")[0]
+
+    def invalidate_inflight_experiments(self, exclude_id: str | None = None):
+        if exclude_id:
+            self.conn.execute(
+                "UPDATE experiments SET decision = 'invalidated' WHERE decision IS NULL AND experiment_id != ?",
+                [exclude_id]
+            )
+        else:
+            self.conn.execute(
+                "UPDATE experiments SET decision = 'invalidated' WHERE decision IS NULL"
+            )
 
     def close(self):
         self.conn.close()
