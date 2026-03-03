@@ -33,19 +33,11 @@ def test_auto_reject_on_gate_failure():
     assert "sharpe" in decision["reasoning"].lower()
 
 def test_promote_on_all_gates_pass():
-    mock_response = MagicMock()
-    mock_response.content = [MagicMock()]
-    mock_response.content[0].text = "This experiment improved Sharpe from 1.0 to 1.2 across all windows. Promoting."
-
-    with patch("src.research.promoter.anthropic") as mock_anthropic:
-        mock_client = MagicMock()
-        mock_anthropic.Anthropic.return_value = mock_client
-        mock_client.messages.create.return_value = mock_response
-
-        promoter = Promoter()
-        decision = promoter.decide(_passing_verdict(), "exp-001", {"weights": {"trend": 0.40}})
-        assert decision["decision"] == "promoted"
-        assert decision["reasoning"] != ""
+    """After M5, all-gates-pass returns paper_testing (not promoted directly)."""
+    promoter = Promoter()
+    decision = promoter.decide(_passing_verdict(), "exp-001", {"weights": {"trend": 0.40}})
+    assert decision["decision"] == "paper_testing"
+    assert decision["reasoning"] != ""
 
 def test_reject_does_not_call_llm():
     with patch("src.research.promoter.anthropic") as mock_anthropic:
