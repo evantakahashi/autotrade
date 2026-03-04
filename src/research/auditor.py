@@ -96,13 +96,6 @@ def evaluate_gates(
             "detail": "insufficient regime data — gate skipped",
         })
 
-    # Gate 6: Paper trading (stubbed — always passes in M3)
-    gates.append({
-        "name": "paper_trading",
-        "passed": True,
-        "detail": "stubbed — paper trading gate not enforced until M5",
-    })
-
     overall = "pass" if all(g["passed"] for g in gates) else "fail"
     failed_gates = [g["name"] for g in gates if not g["passed"]]
 
