@@ -35,7 +35,7 @@ def test_loop_single_iteration(tmp_path):
         MockProposer.return_value = mock_proposer
 
         mock_promoter = MagicMock()
-        mock_promoter.decide.return_value = {"decision": "rejected", "reasoning": "test"}
+        mock_promoter.decide_backtest.return_value = {"decision": "rejected", "reasoning": "test"}
         MockPromoter.return_value = mock_promoter
 
         loop = ResearchLoop(
@@ -63,7 +63,7 @@ def test_loop_single_iteration(tmp_path):
 
         result = loop.run_one_iteration()
         assert result["experiment_id"] is not None
-        assert result["decision"] in ("rejected", "promoted")
+        assert result["decision"] in ("rejected", "promoted", "paper_testing")
 
 def test_loop_stops_after_max_rejections(tmp_path):
     mock_proposal = {
@@ -79,7 +79,7 @@ def test_loop_stops_after_max_rejections(tmp_path):
         MockProposer.return_value = mock_proposer
 
         mock_promoter = MagicMock()
-        mock_promoter.decide.return_value = {"decision": "rejected", "reasoning": "test"}
+        mock_promoter.decide_backtest.return_value = {"decision": "rejected", "reasoning": "test"}
         MockPromoter.return_value = mock_promoter
 
         loop = ResearchLoop(
