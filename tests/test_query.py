@@ -4,6 +4,7 @@ import subprocess
 import sys
 import tempfile
 import pytest
+from datetime import date
 from src.data.db import Storage
 
 
@@ -100,3 +101,48 @@ def test_scores_by_ticker(db_with_scores):
     data = json.loads(result.stdout)
     assert len(data) == 3
     assert all(r["ticker"] == "AAPL" for r in data)
+
+
+@pytest.fixture
+def db_with_paper_trades(tmp_path):
+    db_path = str(tmp_path / "test.duckdb")
+    db = Storage(db_path)
+    db.store_experiment("exp-001", "0.1", {"weights": {"trend": 0.40}}, "test")
+    for i in range(5):
+        db.store_paper_trade(
+            experiment_id="exp-001",
+            trade_date=date(2026, 3, i + 1),
+            baseline_positions={"AAPL": "buy"}, experiment_positions={"AAPL": "buy"},
+            baseline_return=0.005, experiment_return=0.008,
+            baseline_cumulative=0.005 * (i + 1), experiment_cumulative=0.008 * (i + 1),
+        )
+    db.close()
+    yield db_path
+
+
+def test_paper_trades_query(db_with_paper_trades):
+    result = subprocess.run(
+        [sys.executable, "query.py", "paper-trades", "--id", "exp-001", "--db", db_with_paper_trades],
+        capture_output=True, text=True,
+    )
+    assert result.returncode == 0
+    data = json.loads(result.stdout)
+    assert len(data) == 5
+    assert data[0]["experiment_id"] == "exp-001"
+
+
+def test_loop_state_query(db_with_paper_trades):
+    # Add loop state
+    db = Storage(db_with_paper_trades)
+    db.save_loop_state(status="running", paper_trading_experiment="exp-001",
+                       consecutive_rejections=2)
+    db.close()
+
+    result = subprocess.run(
+        [sys.executable, "query.py", "loop-state", "--db", db_with_paper_trades],
+        capture_output=True, text=True,
+    )
+    assert result.returncode == 0
+    data = json.loads(result.stdout)
+    assert data["status"] == "running"
+    assert data["paper_trading_experiment"] == "exp-001"

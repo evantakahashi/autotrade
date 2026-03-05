@@ -44,6 +44,19 @@ def cmd_scores(db: Storage, args):
     print(json.dumps(rows, indent=2, default=str))
 
 
+def cmd_paper_trades(db: Storage, args):
+    rows = db.get_paper_trades(args.id)
+    print(json.dumps(rows, indent=2, default=str))
+
+
+def cmd_loop_state(db: Storage, args):
+    state = db.get_loop_state()
+    if state is None:
+        print(json.dumps({"status": "no state recorded"}))
+    else:
+        print(json.dumps(state, indent=2, default=str))
+
+
 def main():
     parent = argparse.ArgumentParser(add_help=False)
     parent.add_argument("--db", default=DEFAULT_DB, help="DB path")
@@ -65,6 +78,11 @@ def main():
     p_scores.add_argument("--ticker", required=True)
     p_scores.add_argument("--last", type=int, default=10)
 
+    p_paper = sub.add_parser("paper-trades", help="Query paper trades for an experiment", parents=[parent])
+    p_paper.add_argument("--id", required=True, help="Experiment ID")
+
+    p_loop = sub.add_parser("loop-state", help="Query research loop state", parents=[parent])
+
     args = parser.parse_args()
     if not args.command:
         parser.print_help()
@@ -73,7 +91,8 @@ def main():
     db = Storage(args.db)
     try:
         {"experiments": cmd_experiments, "experiment": cmd_experiment,
-         "strategy": cmd_strategy, "scores": cmd_scores}[args.command](db, args)
+         "strategy": cmd_strategy, "scores": cmd_scores,
+         "paper-trades": cmd_paper_trades, "loop-state": cmd_loop_state}[args.command](db, args)
     finally:
         db.close()
 
