@@ -24,6 +24,16 @@ python query.py strategy --history
 python query.py strategy --current
 ```
 
+### Check paper trading progress
+```bash
+python query.py paper-trades --id exp-001
+```
+
+### Check loop state
+```bash
+python query.py loop-state
+```
+
 ### Backtest for manual verification
 ```bash
 python backtest.py TICKERS --strategy strategies/v0.1.yaml --days 730
@@ -36,8 +46,19 @@ python backtest.py TICKERS --strategy strategies/v0.1.yaml --days 730
 - Config outside schema bounds → rejected
 - No valid backtest results → rejected
 
+### Paper testing state
+- All 5 backtest gates pass -> experiment enters `paper_testing` (not immediately promoted)
+- 10 trading days of shadow portfolio tracking
+- Only one experiment can paper trade at a time
+- If a second experiment passes while one is paper trading, it gets discarded
+
+### After paper trading
+- Primary gate passes -> promoted (LLM writes narrative)
+- Primary gate fails -> rejected
+- On promotion: in-flight experiments backtested against old baseline are invalidated
+
 ### Promotion criteria (all must hold)
-- All 6 gates pass
+- All 5 backtest gates pass + paper trading gate passes
 - Sharpe improvement is meaningful (not just noise)
 - Consistent across windows (not one outlier pulling the average)
 - Drawdown and turnover are reasonable relative to baseline

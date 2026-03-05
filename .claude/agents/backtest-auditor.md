@@ -25,6 +25,16 @@ python query.py experiment --id exp-001
 python query.py experiments --last 10
 ```
 
+### View paper trading progress
+```bash
+python query.py paper-trades --id exp-001
+```
+
+### Check loop state
+```bash
+python query.py loop-state
+```
+
 ## Key Metrics
 
 - **Sharpe Ratio**: risk-adjusted return. >1.0 is good, >2.0 is excellent. Below 0 means losing money.
@@ -50,7 +60,16 @@ Backtests use rolling windows (default: 6m train, 2m validation, 1m test, 1m ste
 | Drawdown | not >1.5x baseline max drawdown |
 | Turnover | not >2x baseline monthly turnover |
 | Regime diversity | wins in both up and down markets |
-| Paper trading | stubbed (always passes until M5) |
+| Paper trading | 10 days shadow portfolio: non-negative return AND <1% underperformance vs baseline |
+
+## Paper Trading
+
+After passing 5 backtest gates, experiments enter 10-day paper trading:
+- Shadow portfolio tracks daily positions + returns for both baseline and experiment
+- Primary gate: experiment return >= 0 AND doesn't underperform baseline by >1%
+- Secondary (logged): beat baseline overall, directional consistency %
+- Use `python query.py paper-trades --id exp-NNN` to monitor progress
+- Use `python query.py loop-state` to see if an experiment is currently paper trading
 
 ## How to Present Results
 
