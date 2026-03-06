@@ -35,7 +35,7 @@ def test_full_research_iteration(tmp_path):
         MockProposer.return_value = mock_proposer
 
         mock_promoter = MagicMock()
-        mock_promoter.decide.return_value = {"decision": "rejected", "reasoning": "Sharpe decreased"}
+        mock_promoter.decide_backtest.return_value = {"decision": "rejected", "reasoning": "Sharpe decreased"}
         MockPromoter.return_value = mock_promoter
 
         # Setup
