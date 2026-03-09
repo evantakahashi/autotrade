@@ -12,7 +12,9 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Progress } from "@/components/ui/progress"
+import { Skeleton } from "@/components/ui/skeleton"
 import { RefreshCw, Play, Square, Zap, Clock } from "lucide-react"
+import { getLoopStatus, startLoop, stopLoop } from "@/lib/api"
 
 type LoopStatus = "running" | "paused" | "stopped"
 
@@ -35,14 +37,62 @@ const statusConfig: Record<LoopStatus, { label: string; icon: React.ElementType;
 }
 
 export function ResearchLoopCard() {
-  const [status, setStatus] = React.useState<LoopStatus>("running")
+  const [loopData, setLoopData] = React.useState<any>(null)
+  const [loading, setLoading] = React.useState(true)
   const [tickers, setTickers] = React.useState("")
 
-  const currentStatus = statusConfig[status]
+  const fetchStatus = React.useCallback(() => {
+    getLoopStatus()
+      .then(setLoopData)
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }, [])
+
+  React.useEffect(() => {
+    fetchStatus()
+  }, [fetchStatus])
+
+  const handleStart = async () => {
+    const tickerList = tickers.split(/[,\s]+/).filter(Boolean)
+    if (tickerList.length === 0) return
+    await startLoop(tickerList).catch(() => {})
+    fetchStatus()
+  }
+
+  const handleStop = async () => {
+    await stopLoop().catch(() => {})
+    fetchStatus()
+  }
+
+  if (loading) {
+    return (
+      <Card className="overflow-hidden border-border/50 bg-card/50 backdrop-blur-sm">
+        <CardHeader className="flex flex-row items-start justify-between border-b border-border/50 pb-4">
+          <div className="flex items-center gap-3">
+            <div className="flex size-10 items-center justify-center rounded-xl bg-chart-2/10 text-chart-2 ring-1 ring-chart-2/20">
+              <Zap className="size-5" />
+            </div>
+            <div className="flex flex-col gap-1">
+              <Skeleton className="h-4 w-28" />
+              <Skeleton className="h-3 w-36" />
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-5 pt-5">
+          <Skeleton className="h-16 w-full rounded-xl" />
+          <Skeleton className="h-12 w-full rounded-xl" />
+        </CardContent>
+      </Card>
+    )
+  }
+
+  const status: LoopStatus = (loopData?.status as LoopStatus) || "stopped"
+  const currentStatus = statusConfig[status] || statusConfig.stopped
   const StatusIcon = currentStatus.icon
-  const rejections = 3
+  const rejections = loopData?.consecutive_rejections ?? 0
   const maxRejections = 10
   const rejectionProgress = (rejections / maxRejections) * 100
+  const paperExp = loopData?.paper_trading_experiment
 
   return (
     <Card className="overflow-hidden border-border/50 bg-card/50 backdrop-blur-sm">
@@ -69,13 +119,14 @@ export function ResearchLoopCard() {
           </div>
           <Progress value={rejectionProgress} className="h-2 bg-muted" />
         </div>
-        <div className="flex items-center justify-between rounded-xl bg-muted/30 p-4 ring-1 ring-border/50">
-          <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Paper Trading</span>
-          <div className="flex items-center gap-2">
-            <span className="rounded-md bg-primary/10 px-2 py-0.5 font-mono text-xs font-medium text-primary ring-1 ring-primary/20">exp-007</span>
-            <span className="text-xs text-muted-foreground">day 6/10</span>
+        {paperExp && (
+          <div className="flex items-center justify-between rounded-xl bg-muted/30 p-4 ring-1 ring-border/50">
+            <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Paper Trading</span>
+            <div className="flex items-center gap-2">
+              <span className="rounded-md bg-primary/10 px-2 py-0.5 font-mono text-xs font-medium text-primary ring-1 ring-primary/20">{paperExp}</span>
+            </div>
           </div>
-        </div>
+        )}
       </CardContent>
       <CardFooter className="flex flex-col gap-3 border-t border-border/50 bg-muted/20 pt-4 sm:flex-row">
         <Input
@@ -87,7 +138,7 @@ export function ResearchLoopCard() {
         <div className="flex gap-2">
           <Button
             variant="default"
-            onClick={() => setStatus("running")}
+            onClick={handleStart}
             disabled={status === "running"}
             className="gap-2 rounded-xl px-4"
           >
@@ -96,7 +147,7 @@ export function ResearchLoopCard() {
           </Button>
           <Button
             variant="outline"
-            onClick={() => setStatus("stopped")}
+            onClick={handleStop}
             disabled={status === "stopped"}
             className="gap-2 rounded-xl border-border/50 px-4"
           >
