@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from src.api import deps
-from src.api.routes import strategy, experiments, loop, analyze
+from src.api.routes import strategy, experiments, loop, analyze, scores
 
 
 def create_app(db_path: str = "data/trading_agent.duckdb",
@@ -19,6 +19,7 @@ def create_app(db_path: str = "data/trading_agent.duckdb",
     app.include_router(experiments.router)
     app.include_router(loop.router)
     app.include_router(analyze.router)
+    app.include_router(scores.router)
     return app
 
 
