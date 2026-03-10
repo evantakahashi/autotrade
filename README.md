@@ -39,32 +39,38 @@ ANTHROPIC_API_KEY=your_key
 mkdir -p data
 ```
 
-4. Run:
+4. Run — open Claude Code in the project root and talk to it:
 
-```bash
-# Analyze stocks
-python3 analyze.py AAPL NVDA MSFT AMD GOOG
+```
+> analyze AAPL, NVDA, MSFT, AMD, and GOOG
 
-# Backtest the current strategy
-python3 backtest.py AAPL NVDA MSFT --days 730
+> backtest the current strategy on AAPL NVDA MSFT over the last 2 years
 
-# Run the research loop (3 quick iterations)
-python3 research.py AAPL NVDA MSFT --max-iterations 3 --cooldown 0
+> run 3 research iterations on AAPL NVDA MSFT with no cooldown
 
-# Web dashboard
-python3 run_api.py              # terminal 1
-cd frontend && pnpm dev         # terminal 2
-# open http://localhost:3000
+> start the web dashboard
+```
+
+Claude Code dispatches the right subagent automatically. You can also call them directly:
+
+```
+> @portfolio-analyst score AAPL and NVDA and explain the rationale
+
+> @signal-researcher propose an experiment to improve trend detection
+
+> @backtest-auditor compare v0.1 vs v0.2
+
+> @risk-manager review my current portfolio
+
+> @strategy-promoter evaluate experiment exp-003
 ```
 
 ## Project structure
 
 ```
-analyze.py              # CLI: score stocks, output buy/hold/sell
-backtest.py             # CLI: walk-forward backtest a strategy
-research.py             # CLI: run the autoresearch loop
-query.py                # CLI: read-only DB queries for agents
-run_api.py              # FastAPI server for the web dashboard
+.claude/
+  agents/               # Claude Code subagent prompts (5 roles)
+  memory/               # persistent context across sessions
 
 src/
   agents/               # portfolio analyst, risk manager, signals
@@ -77,9 +83,11 @@ frontend/               # Next.js dashboard (v0-generated, shadcn/ui)
 strategies/             # YAML strategy configs (v0.1, v0.2, ...)
 experiments/            # experiment dirs (config, hypothesis, results, decision)
 
-.claude/
-  agents/               # Claude Code subagent prompts (5 roles)
-  memory/               # persistent context across sessions
+analyze.py              # internal CLI (called by agents)
+backtest.py             # internal CLI (called by agents)
+research.py             # internal CLI (called by agents)
+query.py                # read-only DB queries for agents
+run_api.py              # FastAPI server for the web dashboard
 ```
 
 ## Strategy pipeline
