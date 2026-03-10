@@ -30,25 +30,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { runAnalysis } from "@/lib/api"
 
 type Action = "BUY" | "HOLD" | "SELL"
-
-interface StockAnalysis {
-  rank: number
-  ticker: string
-  action: Action
-  score: number
-  confidence: number
-  trend: number
-  relStr: number
-  volatility: number
-  liquidity: number
-}
-
-interface Warning {
-  title: string
-  description: string
-}
 
 const actionConfig: Record<Action, { className: string; icon: React.ElementType }> = {
   BUY: { className: "border-success/30 bg-success/10 text-success", icon: ArrowUpRight },
@@ -56,26 +40,10 @@ const actionConfig: Record<Action, { className: string; icon: React.ElementType 
   SELL: { className: "border-destructive/30 bg-destructive/10 text-destructive", icon: ArrowDownRight },
 }
 
-const mockResults: StockAnalysis[] = [
-  { rank: 1, ticker: "NVDA", action: "BUY", score: 92, confidence: 94, trend: 88, relStr: 95, volatility: 72, liquidity: 98 },
-  { rank: 2, ticker: "AAPL", action: "BUY", score: 85, confidence: 89, trend: 82, relStr: 88, volatility: 85, liquidity: 99 },
-  { rank: 3, ticker: "MSFT", action: "BUY", score: 81, confidence: 85, trend: 78, relStr: 84, volatility: 88, liquidity: 99 },
-  { rank: 4, ticker: "GOOGL", action: "BUY", score: 76, confidence: 80, trend: 72, relStr: 79, volatility: 82, liquidity: 97 },
-  { rank: 5, ticker: "AMD", action: "HOLD", score: 69, confidence: 72, trend: 65, relStr: 71, volatility: 58, liquidity: 94 },
-  { rank: 6, ticker: "TSLA", action: "HOLD", score: 55, confidence: 58, trend: 52, relStr: 54, volatility: 38, liquidity: 96 },
-  { rank: 7, ticker: "META", action: "HOLD", score: 48, confidence: 52, trend: 45, relStr: 50, volatility: 65, liquidity: 95 },
-  { rank: 8, ticker: "INTC", action: "SELL", score: 32, confidence: 78, trend: 28, relStr: 30, volatility: 45, liquidity: 92 },
-]
-
-const mockWarnings: Warning[] = [
-  { title: "Sector Concentration", description: "62% Technology (max 40%)" },
-  { title: "Borderline Score", description: "AMD at 69 (buy threshold: 70)" },
-]
-
-function getScoreColor(score: number): string {
-  if (score >= 70) return "bg-success"
-  if (score >= 40) return "bg-warning"
-  return "bg-destructive"
+const timeframeMap: Record<string, number> = {
+  "1y": 365,
+  "2y": 730,
+  "3y": 1095,
 }
 
 function getScoreBgTint(score: number): string {
@@ -88,15 +56,28 @@ export function PortfolioAnalysis() {
   const [tickers, setTickers] = React.useState("")
   const [timeframe, setTimeframe] = React.useState("1y")
   const [isAnalyzing, setIsAnalyzing] = React.useState(false)
-  const [showResults, setShowResults] = React.useState(false)
+  const [results, setResults] = React.useState<any>(null)
+  const [error, setError] = React.useState<string | null>(null)
 
-  const handleAnalyze = () => {
+  const handleAnalyze = async () => {
+    const tickerList = tickers.split(/[,\s]+/).filter(Boolean)
+    if (tickerList.length === 0) return
     setIsAnalyzing(true)
-    setTimeout(() => {
+    setError(null)
+    setResults(null)
+    try {
+      const days = timeframeMap[timeframe] || 365
+      const data = await runAnalysis(tickerList, days)
+      setResults(data)
+    } catch (e: any) {
+      setError(e.message || "Analysis failed")
+    } finally {
       setIsAnalyzing(false)
-      setShowResults(true)
-    }, 2000)
+    }
   }
+
+  const recommendations = results?.recommendations || []
+  const warnings = results?.warnings || []
 
   return (
     <div className="flex flex-col gap-6">
@@ -149,7 +130,15 @@ export function PortfolioAnalysis() {
         </CardContent>
       </Card>
 
-      {showResults && (
+      {error && (
+        <Alert className="rounded-xl border-destructive/30 bg-destructive/5">
+          <AlertTriangle className="size-4 text-destructive" />
+          <AlertTitle className="text-sm font-medium text-destructive">Error</AlertTitle>
+          <AlertDescription className="text-xs text-muted-foreground">{error}</AlertDescription>
+        </Alert>
+      )}
+
+      {recommendations.length > 0 && (
         <>
           <Card className="overflow-hidden border-border/50 bg-card/50 backdrop-blur-sm">
             <CardHeader className="flex flex-row items-center justify-between border-b border-border/50 pb-4">
@@ -160,12 +149,12 @@ export function PortfolioAnalysis() {
                 <div className="flex flex-col">
                   <CardTitle className="text-base font-semibold tracking-tight">Analysis Results</CardTitle>
                   <CardDescription className="text-xs">
-                    Strategy v0.2 — {new Date().toLocaleDateString()}
+                    Strategy v{results?.strategy_version || "?"} — {new Date().toLocaleDateString()}
                   </CardDescription>
                 </div>
               </div>
               <Badge variant="secondary" className="rounded-lg border-0 bg-muted/80 font-mono text-xs">
-                {mockResults.length} stocks
+                {recommendations.length} stocks
               </Badge>
             </CardHeader>
             <CardContent className="p-0">
@@ -184,44 +173,46 @@ export function PortfolioAnalysis() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {mockResults.map((stock) => {
-                    const config = actionConfig[stock.action]
+                  {recommendations.map((rec: any, idx: number) => {
+                    const action = rec.action.toUpperCase() as Action
+                    const config = actionConfig[action] || actionConfig.HOLD
                     const ActionIcon = config.icon
+                    const signals = rec.signal_scores || {}
                     return (
-                      <TableRow key={stock.ticker} className="border-border/50 transition-colors hover:bg-muted/30">
-                        <TableCell className="pl-6 font-medium text-muted-foreground">{stock.rank}</TableCell>
+                      <TableRow key={rec.ticker} className="border-border/50 transition-colors hover:bg-muted/30">
+                        <TableCell className="pl-6 font-medium text-muted-foreground">{idx + 1}</TableCell>
                         <TableCell>
                           <span className="rounded-md bg-primary/10 px-2 py-1 font-mono text-xs font-bold text-primary ring-1 ring-primary/20">
-                            {stock.ticker}
+                            {rec.ticker}
                           </span>
                         </TableCell>
                         <TableCell>
                           <Badge variant="outline" className={`gap-1 rounded-lg border px-2 py-0.5 text-[10px] font-medium ${config.className}`}>
                             <ActionIcon className="size-3" />
-                            {stock.action}
+                            {action}
                           </Badge>
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-3">
-                            <Progress 
-                              value={stock.score} 
+                            <Progress
+                              value={rec.composite_score}
                               className="h-1.5 flex-1 bg-muted"
                             />
-                            <span className="w-8 font-mono text-xs font-semibold tabular-nums">{stock.score}</span>
+                            <span className="w-8 font-mono text-xs font-semibold tabular-nums">{Math.round(rec.composite_score)}</span>
                           </div>
                         </TableCell>
-                        <TableCell className="font-mono text-xs tabular-nums">{stock.confidence}%</TableCell>
-                        <TableCell className={`font-mono text-xs tabular-nums ${getScoreBgTint(stock.trend)}`}>
-                          {stock.trend}
+                        <TableCell className="font-mono text-xs tabular-nums">{Math.round(rec.confidence * 100)}%</TableCell>
+                        <TableCell className={`font-mono text-xs tabular-nums ${getScoreBgTint(signals.trend || 0)}`}>
+                          {signals.trend != null ? Math.round(signals.trend) : "—"}
                         </TableCell>
-                        <TableCell className={`font-mono text-xs tabular-nums ${getScoreBgTint(stock.relStr)}`}>
-                          {stock.relStr}
+                        <TableCell className={`font-mono text-xs tabular-nums ${getScoreBgTint(signals.relative_strength || 0)}`}>
+                          {signals.relative_strength != null ? Math.round(signals.relative_strength) : "—"}
                         </TableCell>
-                        <TableCell className={`font-mono text-xs tabular-nums ${getScoreBgTint(stock.volatility)}`}>
-                          {stock.volatility}
+                        <TableCell className={`font-mono text-xs tabular-nums ${getScoreBgTint(signals.volatility || 0)}`}>
+                          {signals.volatility != null ? Math.round(signals.volatility) : "—"}
                         </TableCell>
-                        <TableCell className={`pr-6 font-mono text-xs tabular-nums ${getScoreBgTint(stock.liquidity)}`}>
-                          {stock.liquidity}
+                        <TableCell className={`pr-6 font-mono text-xs tabular-nums ${getScoreBgTint(signals.liquidity || 0)}`}>
+                          {signals.liquidity != null ? Math.round(signals.liquidity) : "—"}
                         </TableCell>
                       </TableRow>
                     )
@@ -231,16 +222,18 @@ export function PortfolioAnalysis() {
             </CardContent>
           </Card>
 
-          <div className="flex flex-col gap-3">
-            <h3 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Risk Warnings</h3>
-            {mockWarnings.map((warning, index) => (
-              <Alert key={index} className="rounded-xl border-warning/30 bg-warning/5">
-                <AlertTriangle className="size-4 text-warning" />
-                <AlertTitle className="text-sm font-medium text-warning">{warning.title}</AlertTitle>
-                <AlertDescription className="text-xs text-muted-foreground">{warning.description}</AlertDescription>
-              </Alert>
-            ))}
-          </div>
+          {warnings.length > 0 && (
+            <div className="flex flex-col gap-3">
+              <h3 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Risk Warnings</h3>
+              {warnings.map((warning: string, index: number) => (
+                <Alert key={index} className="rounded-xl border-warning/30 bg-warning/5">
+                  <AlertTriangle className="size-4 text-warning" />
+                  <AlertTitle className="text-sm font-medium text-warning">Warning</AlertTitle>
+                  <AlertDescription className="text-xs text-muted-foreground">{warning}</AlertDescription>
+                </Alert>
+              ))}
+            </div>
+          )}
         </>
       )}
     </div>
